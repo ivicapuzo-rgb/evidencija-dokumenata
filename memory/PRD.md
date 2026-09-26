@@ -47,3 +47,8 @@ delete/view user accounts).
 ## Next tasks
 - Collect google-services.json from user for Android push
 - Optional: email receipts on payment approval (Emergent Resend)
+
+## Update 2026-09-26
+- Admin password set to `puzopb` (login: admin@evidencija.rs). Startup now syncs admin password + is_admin flag from env each boot.
+- Email confirmation implemented (Emergent managed Resend): on admin payment approval, user receives Serbian confirmation email with new valid-until date. Guardrail gate + send_email in server.py. Verified 202 Accepted.
+- Push notifications confirmed implemented (server relay + hourly scheduler); needs google-services.json + native build for Android device delivery.

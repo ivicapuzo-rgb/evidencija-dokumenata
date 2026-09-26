@@ -1,7 +1,12 @@
 import os
+import re
 import uuid
 import asyncio
 import logging
+import ipaddress
+from html import escape
+from html.parser import HTMLParser
+from urllib.parse import urlparse
 from pathlib import Path
 from datetime import datetime, timezone, timedelta, date
 from typing import Optional, List, Annotated
@@ -48,6 +53,12 @@ APP_NAME = "evidencija-dokumenata"
 # Push
 PUSH_BASE_URL = "https://integrations.emergentagent.com"
 PUSH_KEY = os.environ.get("EMERGENT_PUSH_KEY", "placeholder")
+
+# Email (Emergent managed Resend)
+EMAIL_BASE_URL = "https://integrations.emergentagent.com"
+EMAIL_KEY = os.environ.get("EMERGENT_EMAIL_KEY")
+EMAIL_FROM_NAME = os.environ.get("EMAIL_FROM_NAME", "Евиденција докумената")
+EMAIL_REPLY_TO = os.environ.get("EMAIL_REPLY_TO")
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 logger = logging.getLogger("evidencija")
@@ -199,6 +210,117 @@ async def send_push(recipients: List[str], data: dict, idempotency_key: Optional
     if resp.status_code >= 500:
         raise HTTPException(502, "Push provider unavailable")
     resp.raise_for_status()
+
+
+# ---------------------------------------------------------------------------
+# Email (Emergent managed Resend) with guardrail gate
+# ---------------------------------------------------------------------------
+_SHORTENERS = ("bit.ly", "tinyurl.com", "t.co", "is.gd", "cutt.ly", "goo.gl", "rebrand.ly")
+_CRED_ASK = ("reply with your password", "reply with the code", "send your password", "cvv",
+             "send us your password", "enter your password below", "confirm your card number",
+             "your full card number", "seed phrase", "recovery phrase", "verify your card",
+             "social security number", "confirm your bank details")
+_HOSTISH = re.compile(r"\b(?:https?://)?((?:[a-z0-9-]+\.)+[a-z]{2,})", re.I)
+
+
+def _host_ok(host: str) -> bool:
+    if not host or "xn--" in host:
+        return False
+    try:
+        ipaddress.ip_address(host)
+        return False
+    except ValueError:
+        pass
+    return not any(host == s or host.endswith("." + s) for s in _SHORTENERS)
+
+
+def _same_site(shown: str, real: str) -> bool:
+    return shown == real or real.endswith("." + shown) or shown.endswith("." + real)
+
+
+class _EmailScan(HTMLParser):
+    def __init__(self):
+        super().__init__()
+        self.tags, self.urls, self.anchors = set(), [], []
+        self._href, self._text = None, []
+
+    def handle_starttag(self, tag, attrs):
+        self.tags.add(tag.lower())
+        self.urls += [v for k, v in attrs if k.lower() in ("href", "src") and v]
+        if tag.lower() == "a":
+            self._href = dict((k.lower(), v) for k, v in attrs).get("href")
+            self._text = []
+
+    def handle_data(self, data):
+        if self._href is not None:
+            self._text.append(data)
+
+    def handle_endtag(self, tag):
+        if tag.lower() == "a" and self._href is not None:
+            self.anchors.append((self._href, "".join(self._text)))
+            self._href, self._text = None, []
+
+
+def _assert_safe_email(subject: str, html: str) -> None:
+    scan = _EmailScan()
+    scan.feed(html)
+    if scan.tags & {"form", "input", "textarea", "select"}:
+        raise ValueError("No forms or input fields in email (G2)")
+    body = f"{subject}\n{html}".lower()
+    for p in _CRED_ASK:
+        if p in body:
+            raise ValueError(f"Email asks the recipient for credentials: {p!r} (G2)")
+    for url in scan.urls:
+        low = url.strip().lower()
+        if low.startswith(("mailto:", "tel:", "cid:", "#")):
+            continue
+        if not low.startswith("https://"):
+            raise ValueError(f"Email links/assets must be absolute https: {url!r} (G3)")
+        host = urlparse(low).hostname or ""
+        if not _host_ok(host) or urlparse(low).username is not None:
+            raise ValueError(f"Shortened, numeric-host or credential-bearing URL: {url!r} (G3)")
+    for href, text in scan.anchors:
+        real = urlparse(href.strip().lower()).hostname or ""
+        if not real:
+            continue
+        for m in _HOSTISH.finditer(text):
+            if not _same_site(m.group(1).lower(), real):
+                raise ValueError(f"Anchor text {m.group(1)!r} != real link host {real!r} (G3)")
+
+
+async def send_email(*, to: str, subject: str, html: str) -> Optional[str]:
+    if not EMAIL_KEY:
+        logger.warning("EMERGENT_EMAIL_KEY missing; skipping email send")
+        return None
+    _assert_safe_email(subject, html)
+    payload = {"to": [to], "subject": subject, "html": html, "from_name": EMAIL_FROM_NAME}
+    if EMAIL_REPLY_TO:
+        payload["contact_email"] = EMAIL_REPLY_TO
+    async with httpx.AsyncClient(timeout=30) as ec:
+        resp = await ec.post(
+            f"{EMAIL_BASE_URL}/api/v1/email/send",
+            headers={"X-Email-Key": EMAIL_KEY},
+            json=payload,
+        )
+    resp.raise_for_status()
+    return resp.json().get("id")
+
+
+def subscription_email_html(username: str, valid_until: str) -> str:
+    return (
+        '<table role="presentation" width="100%"><tr><td style="padding:24px;'
+        'font-family:Arial,sans-serif;color:#1c1917">'
+        f'<h2 style="color:#ea580c;margin:0 0 12px">Претплата активирана</h2>'
+        f'<p>Поштовани {escape(username)},</p>'
+        f'<p>Ваша уплата је потврђена. Претплата за апликацију '
+        f'<strong>{escape(EMAIL_FROM_NAME)}</strong> сада важи до '
+        f'<strong>{escape(valid_until)}</strong>.</p>'
+        f'<p>Хвала што користите нашу апликацију за праћење истека докумената.</p>'
+        f'<p style="font-size:12px;color:#888;margin-top:24px">Послато од стране '
+        f'{escape(EMAIL_FROM_NAME)}. Никада вам нећемо тражити лозинку нити податке '
+        f'о картици путем имејла.</p></td></tr></table>'
+    )
+
 
 
 # ---------------------------------------------------------------------------
@@ -571,6 +693,14 @@ async def admin_approve_payment(payment_id: str, admin: Annotated[dict, Depends(
         )
     except Exception as e:
         logger.warning(f"Push failed (non-blocking): {e}")
+    try:
+        await send_email(
+            to=u["email"],
+            subject="Претплата активирана",
+            html=subscription_email_html(u["username"], new_exp.strftime("%d.%m.%Y")),
+        )
+    except Exception as e:
+        logger.warning(f"Email failed (non-blocking): {e}")
     return {"status": "approved", "subscription_expires_at": iso(new_exp)}
 
 
@@ -693,6 +823,12 @@ async def on_startup():
             "last_seen": now_utc(),
         })
         logger.info("Seeded admin user")
+    else:
+        # keep admin password + admin flag in sync with env config
+        await db.users.update_one(
+            {"_id": existing["_id"]},
+            {"$set": {"hashed_password": hash_password(ADMIN_PASSWORD), "is_admin": True}},
+        )
     try:
         await run_in_threadpool(init_storage)
     except Exception as e:
