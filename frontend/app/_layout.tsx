@@ -16,6 +16,7 @@ import { AuthProvider } from "@/src/auth/AuthContext";
 import { ToastProvider } from "@/src/components/Toast";
 import { storage } from "@/src/utils/storage";
 import { Icon } from "@/src/components/Icon";
+import { UpdatePrompt } from "@/src/components/UpdatePrompt";
 
 LogBox.ignoreAllLogs(true);
 
@@ -124,6 +125,7 @@ export default function RootLayout() {
                     <Stack screenOptions={{ headerShown: false }}>
                       <Stack.Screen name="document/add" options={{ presentation: "modal" }} />
                     </Stack>
+                    <UpdatePrompt />
                   </NotificationGate>
                 </ToastProvider>
               </AuthProvider>

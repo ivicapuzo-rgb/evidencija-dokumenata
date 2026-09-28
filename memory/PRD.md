@@ -52,3 +52,8 @@ delete/view user accounts).
 - Admin password set to `puzopb` (login: admin@evidencija.rs). Startup now syncs admin password + is_admin flag from env each boot.
 - Email confirmation implemented (Emergent managed Resend): on admin payment approval, user receives Serbian confirmation email with new valid-until date. Guardrail gate + send_email in server.py. Verified 202 Accepted.
 - Push notifications confirmed implemented (server relay + hourly scheduler); needs google-services.json + native build for Android device delivery.
+
+## Update 2026-09-28
+- Installed expo-updates + built UpdatePrompt modal (Serbian): "Нова верзија је спремна — Ажурирај сада / Касније".
+- Silent OTA check on launch and on every foreground (AppState active); downloads update in background then shows modal. "Ажурирај сада" calls Updates.reloadAsync() to restart into the new version without visiting the store.
+- Gated by Updates.isEnabled && !__DEV__ so it is inert in Expo Go/preview and only active in real builds. Mounted in app/_layout.tsx.
