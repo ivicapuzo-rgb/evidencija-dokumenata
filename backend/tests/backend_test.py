@@ -10,7 +10,7 @@ BASE_URL = os.environ.get("EXPO_PUBLIC_BACKEND_URL", "https://expiry-notifier-27
 API = f"{BASE_URL}/api"
 
 ADMIN_EMAIL = "admin@evidencija.rs"
-ADMIN_PASSWORD = "Admin123!"
+ADMIN_PASSWORD = "puzopb"
 
 TEST_TAG = f"TEST_{uuid.uuid4().hex[:8]}"
 
@@ -227,6 +227,69 @@ class TestAdmin:
         r = s.post(f"{API}/admin/run-checks", headers=_auth(admin_token), timeout=30)
         # can be 200 or 502 if push provider unreachable; both acceptable
         assert r.status_code in (200, 502, 500)
+
+
+# ========================= Self-service account deletion =========================
+class TestSelfDelete:
+    def _fresh_user(self, s):
+        tag = f"TEST_DEL_{uuid.uuid4().hex[:8]}"
+        email = f"{tag}@example.com".lower()
+        payload = {"username": tag, "email": email, "password": "Passw0rd!"}
+        r = s.post(f"{API}/auth/register", json=payload, timeout=30)
+        assert r.status_code == 201, r.text
+        d = r.json()
+        return {"email": email, "password": "Passw0rd!", "token": d["access_token"], "user": d["user"]}
+
+    def test_delete_me_requires_auth(self, s):
+        r = s.delete(f"{API}/auth/me", timeout=15)
+        assert r.status_code == 401
+
+    def test_delete_me_soft_deletes_user_and_docs(self, s):
+        u = self._fresh_user(s)
+        tok = u["token"]
+
+        # Create a document to verify it is also soft-deleted
+        exp = (date.today() + timedelta(days=30)).isoformat()
+        rc = s.post(f"{API}/documents", headers=_auth(tok),
+                    json={"name": "TEST_DEL_DOC", "doc_type": "id_card", "expires_at": exp, "alarm_days": 5}, timeout=15)
+        assert rc.status_code == 201, rc.text
+
+        # /me works before delete
+        r0 = s.get(f"{API}/auth/me", headers=_auth(tok), timeout=15)
+        assert r0.status_code == 200
+
+        # Delete self
+        r = s.delete(f"{API}/auth/me", headers=_auth(tok), timeout=20)
+        assert r.status_code == 200, r.text
+        assert r.json().get("status") == "deleted"
+
+        # Same token must now be rejected on /auth/me
+        r2 = s.get(f"{API}/auth/me", headers=_auth(tok), timeout=15)
+        assert r2.status_code == 401, f"token still valid after self-delete: {r2.status_code} {r2.text}"
+
+        # Login must also fail
+        r3 = s.post(f"{API}/auth/login", json={"email": u["email"], "password": u["password"]}, timeout=15)
+        assert r3.status_code == 401, f"deleted user could log in again: {r3.status_code} {r3.text}"
+
+        # Documents endpoint with old token also rejected
+        r4 = s.get(f"{API}/documents", headers=_auth(tok), timeout=15)
+        assert r4.status_code == 401
+
+    def test_deleted_user_docs_hidden_from_admin_list(self, s, admin_token):
+        u = self._fresh_user(s)
+        tok = u["token"]
+        exp = (date.today() + timedelta(days=30)).isoformat()
+        s.post(f"{API}/documents", headers=_auth(tok),
+               json={"name": "TEST_HIDDEN", "doc_type": "id_card", "expires_at": exp, "alarm_days": 5}, timeout=15)
+
+        uid = u["user"]["id"]
+        # Delete self
+        r = s.delete(f"{API}/auth/me", headers=_auth(tok), timeout=20)
+        assert r.status_code == 200
+
+        # Admin users list should not include this user (soft-deleted)
+        lst = s.get(f"{API}/admin/users", headers=_auth(admin_token), timeout=15).json()
+        assert not any(x["id"] == uid for x in lst), "soft-deleted user still appears in admin list"
 
 
 # ========================= Cleanup =========================

@@ -458,6 +458,17 @@ async def me(user: Annotated[dict, Depends(current_user)]):
     return public_user(user)
 
 
+@api_router.delete("/auth/me")
+async def delete_own_account(user: Annotated[dict, Depends(current_user)]):
+    # self-service account deletion (soft delete) — required for app store review
+    await db.users.update_one({"_id": user["_id"]}, {"$set": {"deleted_at": now_utc()}})
+    await db.documents.update_many(
+        {"user_id": str(user["_id"]), "deleted_at": {"$exists": False}},
+        {"$set": {"deleted_at": now_utc()}},
+    )
+    return {"status": "deleted"}
+
+
 # ---------------------------------------------------------------------------
 # Documents (cards)
 # ---------------------------------------------------------------------------

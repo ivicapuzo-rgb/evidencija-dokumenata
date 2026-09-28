@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { View, Text, Pressable, ScrollView, Modal } from "react-native";
+import { View, Text, Pressable, ScrollView, Modal, ActivityIndicator } from "react-native";
 import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useQueryClient } from "@tanstack/react-query";
@@ -25,7 +25,7 @@ export default function Profile() {
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { user, logout } = useAuth();
+  const { user, logout, deleteAccount } = useAuth();
   const toast = useToast();
   const qc = useQueryClient();
 
@@ -33,6 +33,8 @@ export default function Profile() {
   const [pickerOpen, setPickerOpen] = useState(false);
   const [draftHour, setDraftHour] = useState(9);
   const [draftMinute, setDraftMinute] = useState(0);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     getReminderTime().then(setReminder);
@@ -58,6 +60,19 @@ export default function Profile() {
   const doLogout = async () => {
     await logout();
     router.replace("/welcome");
+  };
+
+  const confirmDelete = async () => {
+    setDeleting(true);
+    try {
+      await deleteAccount();
+      qc.clear();
+      setDeleteOpen(false);
+      router.replace("/welcome");
+    } catch (e: any) {
+      setDeleting(false);
+      toast.show(e?.message || "Брисање неуспешно", "error");
+    }
   };
 
   return (
@@ -121,6 +136,10 @@ export default function Profile() {
         <Pressable testID="logout-button" style={styles.logoutBtn} onPress={doLogout}>
           <Icon name="logout" size={20} color={colors.error} />
           <Text style={styles.logoutText}>Одјава</Text>
+        </Pressable>
+
+        <Pressable testID="delete-account-button" style={styles.deleteRow} onPress={() => setDeleteOpen(true)}>
+          <Text style={styles.deleteRowText}>Обриши налог</Text>
         </Pressable>
       </ScrollView>
 
@@ -191,6 +210,30 @@ export default function Profile() {
           <Pressable testID="save-reminder-time" style={styles.saveBtn} onPress={saveTime}>
             <Text style={styles.saveText}>Сачувај</Text>
           </Pressable>
+        </View>
+      </Modal>
+
+      <Modal visible={deleteOpen} transparent animationType="fade" onRequestClose={() => setDeleteOpen(false)}>
+        <View style={styles.centerBackdrop}>
+          <View style={styles.confirmCard} testID="delete-account-modal">
+            <View style={styles.confirmIcon}>
+              <Icon name="alert" size={28} color={colors.onError} />
+            </View>
+            <Text style={styles.confirmTitle}>Обриши налог?</Text>
+            <Text style={styles.confirmSub}>
+              Ова радња трајно уклања ваш налог и сва документа. Не може се опозвати.
+            </Text>
+            <Pressable testID="confirm-delete-account" style={styles.confirmDeleteBtn} onPress={confirmDelete} disabled={deleting}>
+              {deleting ? (
+                <ActivityIndicator color={colors.onError} />
+              ) : (
+                <Text style={styles.confirmDeleteText}>Да, обриши налог</Text>
+              )}
+            </Pressable>
+            <Pressable testID="cancel-delete-account" style={styles.confirmCancelBtn} onPress={() => setDeleteOpen(false)} disabled={deleting}>
+              <Text style={styles.confirmCancelText}>Откажи</Text>
+            </Pressable>
+          </View>
         </View>
       </Modal>
     </View>
@@ -331,4 +374,43 @@ const useStyles = makeStyles((colors) => ({
     alignItems: "center",
   },
   saveText: { color: colors.onBrandPrimary, fontWeight: "800", fontSize: 16 },
+  deleteRow: { alignItems: "center", paddingVertical: 16, marginTop: 6 },
+  deleteRowText: { color: colors.error, fontWeight: "700", fontSize: 14 },
+  centerBackdrop: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.55)",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 28,
+  },
+  confirmCard: {
+    width: "100%",
+    maxWidth: 420,
+    backgroundColor: colors.surface,
+    borderRadius: 26,
+    padding: 26,
+    alignItems: "center",
+  },
+  confirmIcon: {
+    width: 60,
+    height: 60,
+    borderRadius: 18,
+    backgroundColor: colors.error,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 16,
+  },
+  confirmTitle: { fontSize: 20, fontWeight: "800", color: colors.onSurface, textAlign: "center" },
+  confirmSub: { fontSize: 14, color: colors.muted, textAlign: "center", marginTop: 10, lineHeight: 21 },
+  confirmDeleteBtn: {
+    width: "100%",
+    backgroundColor: colors.error,
+    borderRadius: 999,
+    paddingVertical: 16,
+    alignItems: "center",
+    marginTop: 22,
+  },
+  confirmDeleteText: { color: colors.onError, fontWeight: "800", fontSize: 16 },
+  confirmCancelBtn: { width: "100%", paddingVertical: 14, alignItems: "center", marginTop: 4 },
+  confirmCancelText: { color: colors.muted, fontWeight: "700", fontSize: 15 },
 }));
