@@ -57,3 +57,7 @@ delete/view user accounts).
 - Installed expo-updates + built UpdatePrompt modal (Serbian): "Нова верзија је спремна — Ажурирај сада / Касније".
 - Silent OTA check on launch and on every foreground (AppState active); downloads update in background then shows modal. "Ажурирај сада" calls Updates.reloadAsync() to restart into the new version without visiting the store.
 - Gated by Updates.isEnabled && !__DEV__ so it is inert in Expo Go/preview and only active in real builds. Mounted in app/_layout.tsx.
+
+## Update 2026-09-28 (b)
+- Splash screen set to user's orange "EVIDENCIJA U DZEPU" image (assets/images/splash-image.png), backgroundColor #FF9902, contain.
+- Local (on-device) notifications: src/utils/localNotifications.ts schedules a local notification per document at 09:00, alarm_days before expiry — fires on lock screen + notification tray even offline. syncDocReminders() runs from documents tab whenever the list changes; cancels+reschedules all. Sets app-icon badge via setBadgeCountAsync to number of documents inside their alarm window. Native-build only (inert on web).

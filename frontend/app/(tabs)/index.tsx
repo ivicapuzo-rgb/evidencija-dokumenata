@@ -1,4 +1,4 @@
-import React, { useCallback } from "react";
+import React, { useCallback, useEffect } from "react";
 import {
   View,
   Text,
@@ -17,6 +17,7 @@ import { api } from "@/src/api/client";
 import { useAuth } from "@/src/auth/AuthContext";
 import { useToast } from "@/src/components/Toast";
 import { ALARM_OPTIONS, docIcon, statusFor, formatDate } from "@/src/utils/docmeta";
+import { syncDocReminders } from "@/src/utils/localNotifications";
 
 type Doc = {
   id: string;
@@ -59,6 +60,11 @@ export default function Documents() {
     docsQ.refetch();
     subQ.refetch();
   }, [docsQ, subQ]);
+
+  // keep on-device local reminders in sync with the latest documents
+  useEffect(() => {
+    if (docsQ.data) syncDocReminders(docsQ.data);
+  }, [docsQ.data]);
 
   const renderHeader = () => {
     const sub = subQ.data;
