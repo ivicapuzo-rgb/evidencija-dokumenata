@@ -1,6 +1,23 @@
 import { Platform } from "react-native";
 import * as Notifications from "expo-notifications";
 import { formatDate } from "@/src/utils/docmeta";
+import { storage } from "@/src/utils/storage";
+
+export const REMINDER_TIME_KEY = "reminder_time"; // "HH:MM"
+export const DEFAULT_REMINDER_TIME = "09:00";
+
+export async function getReminderTime(): Promise<string> {
+  return storage.getItem<string>(REMINDER_TIME_KEY, DEFAULT_REMINDER_TIME);
+}
+
+export async function setReminderTime(value: string): Promise<void> {
+  await storage.setItem(REMINDER_TIME_KEY, value);
+}
+
+function parseTime(value: string): { hour: number; minute: number } {
+  const [h, m] = value.split(":").map((n) => parseInt(n, 10));
+  return { hour: isNaN(h) ? 9 : h, minute: isNaN(m) ? 0 : m };
+}
 
 export type DocLite = {
   id: string;
@@ -29,6 +46,7 @@ export async function syncDocReminders(docs: DocLite[]): Promise<void> {
 
   await Notifications.cancelAllScheduledNotificationsAsync();
 
+  const { hour, minute } = parseTime(await getReminderTime());
   const now = new Date();
   let dueCount = 0;
 
@@ -38,8 +56,8 @@ export async function syncDocReminders(docs: DocLite[]): Promise<void> {
     const [y, m, day] = d.expires_at.slice(0, 10).split("-").map(Number);
     if (!y || !m || !day) continue;
 
-    // 09:00 local, `alarm_days` before the expiry date
-    const notifyDate = new Date(y, m - 1, day, 9, 0, 0);
+    // user-chosen time of day, `alarm_days` before the expiry date
+    const notifyDate = new Date(y, m - 1, day, hour, minute, 0);
     notifyDate.setDate(notifyDate.getDate() - d.alarm_days);
 
     let triggerDate = notifyDate;

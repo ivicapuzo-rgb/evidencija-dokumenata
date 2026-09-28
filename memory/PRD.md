@@ -61,3 +61,6 @@ delete/view user accounts).
 ## Update 2026-09-28 (b)
 - Splash screen set to user's orange "EVIDENCIJA U DZEPU" image (assets/images/splash-image.png), backgroundColor #FF9902, contain.
 - Local (on-device) notifications: src/utils/localNotifications.ts schedules a local notification per document at 09:00, alarm_days before expiry — fires on lock screen + notification tray even offline. syncDocReminders() runs from documents tab whenever the list changes; cancels+reschedules all. Sets app-icon badge via setBadgeCountAsync to number of documents inside their alarm window. Native-build only (inert on web).
+
+## Update 2026-09-28 (c)
+- User-selectable reminder time-of-day. Profile screen has a "Време подсетника" row opening a bottom-sheet picker (quick presets 07/08/09/12/18/20h, hour scroller 00-23, minute chips 00/15/30/45). Saved to local storage key `reminder_time` (HH:MM, default 09:00). localNotifications.syncDocReminders reads it and schedules all document reminders at that time; changing it re-syncs immediately from the cached documents query.

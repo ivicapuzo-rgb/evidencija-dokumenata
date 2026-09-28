@@ -1,11 +1,24 @@
-import React from "react";
-import { View, Text, Pressable, ScrollView } from "react-native";
+import React, { useEffect, useState } from "react";
+import { View, Text, Pressable, ScrollView, Modal } from "react-native";
 import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useQueryClient } from "@tanstack/react-query";
 import { makeStyles, useTheme } from "@/src/theme";
 import { Icon } from "@/src/components/Icon";
 import { useAuth } from "@/src/auth/AuthContext";
+import { useToast } from "@/src/components/Toast";
 import { formatDate } from "@/src/utils/docmeta";
+import {
+  getReminderTime,
+  setReminderTime,
+  syncDocReminders,
+  DEFAULT_REMINDER_TIME,
+  DocLite,
+} from "@/src/utils/localNotifications";
+
+const HOURS = Array.from({ length: 24 }, (_, i) => i);
+const MINUTES = [0, 15, 30, 45];
+const PRESETS = ["07:00", "08:00", "09:00", "12:00", "18:00", "20:00"];
 
 export default function Profile() {
   const styles = useStyles();
@@ -13,6 +26,34 @@ export default function Profile() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { user, logout } = useAuth();
+  const toast = useToast();
+  const qc = useQueryClient();
+
+  const [reminder, setReminder] = useState(DEFAULT_REMINDER_TIME);
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [draftHour, setDraftHour] = useState(9);
+  const [draftMinute, setDraftMinute] = useState(0);
+
+  useEffect(() => {
+    getReminderTime().then(setReminder);
+  }, []);
+
+  const openPicker = () => {
+    const [h, m] = reminder.split(":").map((n) => parseInt(n, 10));
+    setDraftHour(isNaN(h) ? 9 : h);
+    setDraftMinute(isNaN(m) ? 0 : m);
+    setPickerOpen(true);
+  };
+
+  const saveTime = async () => {
+    const value = `${String(draftHour).padStart(2, "0")}:${String(draftMinute).padStart(2, "0")}`;
+    setReminder(value);
+    await setReminderTime(value);
+    setPickerOpen(false);
+    const docs = qc.getQueryData<DocLite[]>(["documents"]);
+    if (docs) await syncDocReminders(docs);
+    toast.show(`Подсетници стижу у ${value}`, "success");
+  };
 
   const doLogout = async () => {
     await logout();
@@ -60,6 +101,17 @@ export default function Profile() {
           </View>
         </View>
 
+        <Pressable testID="reminder-time-button" style={styles.infoRow} onPress={openPicker}>
+          <View style={styles.infoIcon}>
+            <Icon name="clock-outline" size={22} color={colors.brandPrimary} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.infoLabel}>Време подсетника</Text>
+            <Text style={styles.infoValue} testID="reminder-time-value">{reminder}</Text>
+          </View>
+          <Icon name="pencil" size={20} color={colors.muted} />
+        </Pressable>
+
         <Pressable testID="profile-subscription-button" style={styles.linkRow} onPress={() => router.push("/(tabs)/subscription")}>
           <Icon name="credit-card-outline" size={22} color={colors.onSurfaceSecondary} />
           <Text style={styles.linkText}>Управљај претплатом</Text>
@@ -71,6 +123,76 @@ export default function Profile() {
           <Text style={styles.logoutText}>Одјава</Text>
         </Pressable>
       </ScrollView>
+
+      <Modal visible={pickerOpen} transparent animationType="slide" onRequestClose={() => setPickerOpen(false)}>
+        <Pressable style={styles.backdrop} onPress={() => setPickerOpen(false)} />
+        <View style={[styles.sheet, { paddingBottom: insets.bottom + 20 }]} testID="reminder-picker">
+          <View style={styles.sheetHandle} />
+          <Text style={styles.sheetTitle}>Време подсетника</Text>
+          <Text style={styles.sheetSub}>Изаберите у колико сати желите да стигне подсетник.</Text>
+
+          <Text style={styles.pickerBig} testID="reminder-draft">
+            {String(draftHour).padStart(2, "0")}:{String(draftMinute).padStart(2, "0")}
+          </Text>
+
+          <Text style={styles.pickerLabel}>БРЗИ ИЗБОР</Text>
+          <View style={styles.presetRow}>
+            {PRESETS.map((p) => {
+              const active = `${String(draftHour).padStart(2, "0")}:${String(draftMinute).padStart(2, "0")}` === p;
+              return (
+                <Pressable
+                  key={p}
+                  testID={`preset-${p}`}
+                  style={[styles.presetChip, active && styles.chipActive]}
+                  onPress={() => {
+                    const [h, m] = p.split(":").map(Number);
+                    setDraftHour(h);
+                    setDraftMinute(m);
+                  }}
+                >
+                  <Text style={[styles.chipText, active && styles.chipTextActive]}>{p}</Text>
+                </Pressable>
+              );
+            })}
+          </View>
+
+          <Text style={styles.pickerLabel}>САТ</Text>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipScroll}>
+            {HOURS.map((h) => (
+              <Pressable
+                key={h}
+                testID={`hour-${h}`}
+                style={[styles.timeChip, draftHour === h && styles.chipActive]}
+                onPress={() => setDraftHour(h)}
+              >
+                <Text style={[styles.chipText, draftHour === h && styles.chipTextActive]}>
+                  {String(h).padStart(2, "0")}
+                </Text>
+              </Pressable>
+            ))}
+          </ScrollView>
+
+          <Text style={styles.pickerLabel}>МИНУТ</Text>
+          <View style={styles.presetRow}>
+            {MINUTES.map((m) => (
+              <Pressable
+                key={m}
+                testID={`minute-${m}`}
+                style={[styles.timeChip, draftMinute === m && styles.chipActive]}
+                onPress={() => setDraftMinute(m)}
+              >
+                <Text style={[styles.chipText, draftMinute === m && styles.chipTextActive]}>
+                  {String(m).padStart(2, "0")}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
+
+          <Pressable testID="save-reminder-time" style={styles.saveBtn} onPress={saveTime}>
+            <Text style={styles.saveText}>Сачувај</Text>
+          </Pressable>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -147,4 +269,66 @@ const useStyles = makeStyles((colors) => ({
     borderColor: colors.error,
   },
   logoutText: { color: colors.error, fontWeight: "800", fontSize: 16 },
+  backdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)" },
+  sheet: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: colors.surface,
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    paddingHorizontal: 20,
+    paddingTop: 12,
+  },
+  sheetHandle: {
+    width: 44,
+    height: 5,
+    borderRadius: 999,
+    backgroundColor: colors.borderStrong,
+    alignSelf: "center",
+    marginBottom: 16,
+  },
+  sheetTitle: { fontSize: 20, fontWeight: "800", color: colors.onSurface },
+  sheetSub: { fontSize: 14, color: colors.muted, marginTop: 4 },
+  pickerBig: {
+    fontSize: 46,
+    fontWeight: "900",
+    color: colors.brandPrimary,
+    textAlign: "center",
+    marginVertical: 16,
+    letterSpacing: 1,
+  },
+  pickerLabel: { fontSize: 12, fontWeight: "800", color: colors.onSurfaceTertiary, letterSpacing: 0.5, marginTop: 14, marginBottom: 8 },
+  presetRow: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+  chipScroll: { gap: 8, paddingRight: 8 },
+  presetChip: {
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 999,
+    backgroundColor: colors.surfaceTertiary,
+    borderWidth: 1.5,
+    borderColor: colors.border,
+  },
+  timeChip: {
+    minWidth: 52,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 999,
+    backgroundColor: colors.surfaceTertiary,
+    borderWidth: 1.5,
+    borderColor: colors.border,
+    alignItems: "center",
+  },
+  chipActive: { backgroundColor: colors.brandPrimary, borderColor: colors.brandPrimary },
+  chipText: { fontSize: 15, fontWeight: "700", color: colors.onSurfaceTertiary },
+  chipTextActive: { color: colors.onBrandPrimary },
+  saveBtn: {
+    marginTop: 24,
+    backgroundColor: colors.brandPrimary,
+    borderRadius: 999,
+    paddingVertical: 17,
+    alignItems: "center",
+  },
+  saveText: { color: colors.onBrandPrimary, fontWeight: "800", fontSize: 16 },
 }));
