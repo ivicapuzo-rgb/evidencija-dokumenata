@@ -5,8 +5,11 @@ import * as Application from "expo-application";
 
 // version info is served by the backend (/api/app/version) for easy control —
 // admins can change version/apkUrl/mandatory without editing files. The app
-// pulls all update-check data from here.
+// pulls all update-check data from here, with a GitHub raw fallback if the
+// backend is unreachable.
 export const VERSION_URL = `${process.env.EXPO_PUBLIC_BACKEND_URL}/api/app/version`;
+export const GITHUB_FALLBACK_URL =
+  "https://raw.githubusercontent.com/ivicapuzo-rgb/evidencija-dokumenata/main/version.json";
 
 export type RemoteVersion = {
   version: string;
@@ -16,16 +19,34 @@ export type RemoteVersion = {
   mandatory?: boolean;
 };
 
-export async function fetchRemoteVersion(): Promise<RemoteVersion | null> {
+function normalize(data: any): RemoteVersion | null {
+  if (!data) return null;
+  // accept both camelCase (backend) and version.json shapes
+  const versionCode = typeof data.versionCode === "number" ? data.versionCode : data.version_code;
+  const apkUrl = data.apkUrl ?? data.apk_url;
+  if (typeof versionCode !== "number" || !apkUrl) return null;
+  return {
+    version: data.version ?? "",
+    versionCode,
+    apkUrl,
+    notes: data.notes,
+    mandatory: !!data.mandatory,
+  };
+}
+
+async function fetchJson(url: string): Promise<RemoteVersion | null> {
   try {
-    const res = await fetch(`${VERSION_URL}?t=${Date.now()}`);
+    const res = await fetch(`${url}?t=${Date.now()}`);
     if (!res.ok) return null;
-    const data = await res.json();
-    if (typeof data?.versionCode !== "number" || !data?.apkUrl) return null;
-    return data as RemoteVersion;
+    return normalize(await res.json());
   } catch {
     return null;
   }
+}
+
+export async function fetchRemoteVersion(): Promise<RemoteVersion | null> {
+  // primary: backend; fallback: GitHub raw version.json
+  return (await fetchJson(VERSION_URL)) ?? (await fetchJson(GITHUB_FALLBACK_URL));
 }
 
 // Android versionCode of the currently installed build.

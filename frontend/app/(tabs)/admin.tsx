@@ -113,6 +113,21 @@ export default function Admin() {
           </View>
         )}
 
+        <Pressable
+          testID="manage-version-button"
+          style={styles.versionLink}
+          onPress={() => router.push("/admin/version")}
+        >
+          <View style={styles.versionIcon}>
+            <Icon name="cellphone-arrow-down" size={22} color={colors.brandPrimary} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.versionTitle}>Верзија апликације</Text>
+            <Text style={styles.versionSub}>Управљај APK ажурирањем и обавезним update-ом</Text>
+          </View>
+          <Icon name="chevron-right" size={22} color={colors.muted} />
+        </Pressable>
+
         <Text style={styles.sectionTitle}>Уплате на чекању {s ? `(${s.pending_payments})` : ""}</Text>
         {paymentsQ.data?.length === 0 && <Text style={styles.emptyText}>Нема уплата на чекању.</Text>}
         {paymentsQ.data?.map((p) => (
@@ -208,6 +223,27 @@ const useStyles = makeStyles((colors) => ({
   statValue: { fontSize: 28, fontWeight: "900", color: colors.onSurface },
   statLabel: { fontSize: 13, color: colors.muted, marginTop: 2, fontWeight: "600" },
   sectionTitle: { fontSize: 17, fontWeight: "800", color: colors.onSurface, marginTop: 26, marginBottom: 12 },
+  versionLink: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 14,
+    backgroundColor: colors.surfaceSecondary,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: 16,
+    marginTop: 20,
+  },
+  versionIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    backgroundColor: colors.brandTertiary,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  versionTitle: { fontSize: 15, fontWeight: "800", color: colors.onSurface },
+  versionSub: { fontSize: 12, color: colors.muted, marginTop: 2 },
   emptyText: { fontSize: 14, color: colors.muted },
   paymentCard: {
     backgroundColor: colors.surfaceSecondary,
