@@ -20,7 +20,7 @@
         "backgroundColor": "#EA580C"
       },
       "package": "com.emergent.expirynotifier.s1j98n",
-      "permissions": ["READ_MEDIA_IMAGES", "POST_NOTIFICATIONS"]
+      "permissions": ["INTERNET", "READ_MEDIA_IMAGES", "POST_NOTIFICATIONS", "REQUEST_INSTALL_PACKAGES"]
     },
     "web": {
       "bundler": "metro",

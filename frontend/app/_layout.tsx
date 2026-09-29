@@ -17,6 +17,7 @@ import { ToastProvider } from "@/src/components/Toast";
 import { storage } from "@/src/utils/storage";
 import { Icon } from "@/src/components/Icon";
 import { UpdatePrompt } from "@/src/components/UpdatePrompt";
+import { ApkUpdatePrompt } from "@/src/components/ApkUpdatePrompt";
 
 LogBox.ignoreAllLogs(true);
 
@@ -126,6 +127,7 @@ export default function RootLayout() {
                       <Stack.Screen name="document/add" options={{ presentation: "modal" }} />
                     </Stack>
                     <UpdatePrompt />
+                    <ApkUpdatePrompt />
                   </NotificationGate>
                 </ToastProvider>
               </AuthProvider>

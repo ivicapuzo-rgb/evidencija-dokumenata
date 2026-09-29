@@ -64,3 +64,11 @@ delete/view user accounts).
 
 ## Update 2026-09-28 (c)
 - User-selectable reminder time-of-day. Profile screen has a "Време подсетника" row opening a bottom-sheet picker (quick presets 07/08/09/12/18/20h, hour scroller 00-23, minute chips 00/15/30/45). Saved to local storage key `reminder_time` (HH:MM, default 09:00). localNotifications.syncDocReminders reads it and schedules all document reminders at that time; changing it re-syncs immediately from the cached documents query.
+
+## Update 2026-09-29 (self-hosted APK auto-update)
+- App is Expo-managed (no MainActivity.java / UpdateChecker.java possible); implemented the equivalent in TypeScript.
+- /app/version.json hosted on the user's GitHub repo (raw). Fields: version, versionCode, apkUrl (GitHub Releases), notes, mandatory.
+- src/utils/updateChecker.ts: fetches version.json, compares versionCode with Application.nativeBuildVersion, downloads APK via expo-file-system(legacy) createDownloadResumable, installs via expo-intent-launcher INSTALL_PACKAGE with content:// URI.
+- src/components/ApkUpdatePrompt.tsx: Serbian modal, checks on launch + foreground, progress bar, mandatory support; mounted in app/_layout.tsx. Android-only, inert in dev/web.
+- app.json android.permissions += INTERNET, REQUEST_INSTALL_PACKAGES.
+- CAVEATS: self-hosted APK must be signed with the SAME keystore as the installed build (else Android rejects update); works only in a real Android build, not Expo Go/preview; requires user to upload APK to GitHub Releases and bump version.json.

@@ -1,0 +1,7 @@
+{
+  "version": "1.0.0",
+  "versionCode": 1,
+  "apkUrl": "https://github.com/ivicapuzo-rgb/evidencija-dokumenata/releases/latest/download/evidencija-dokumenata.apk",
+  "notes": "Прва верзија апликације Евиденција докумената.",
+  "mandatory": false
+}
