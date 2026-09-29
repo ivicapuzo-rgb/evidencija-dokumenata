@@ -3,13 +3,11 @@ import { View, Text, Pressable, ScrollView, ActivityIndicator, Platform } from "
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import * as ImagePicker from "expo-image-picker";
-import * as Clipboard from "expo-clipboard";
 import { Image } from "expo-image";
 import { makeStyles, useTheme } from "@/src/theme";
 import { Icon } from "@/src/components/Icon";
 import { api, fileUrl } from "@/src/api/client";
 import { useToast } from "@/src/components/Toast";
-import { useAuth } from "@/src/auth/AuthContext";
 import { formatDate } from "@/src/utils/docmeta";
 
 type Sub = {
@@ -28,7 +26,6 @@ export default function Subscription() {
   const insets = useSafeAreaInsets();
   const toast = useToast();
   const qc = useQueryClient();
-  const { refresh } = useAuth();
   const [uploading, setUploading] = useState(false);
 
   const subQ = useQuery({ queryKey: ["subscription"], queryFn: () => api<Sub>("/subscription") });
@@ -42,13 +39,6 @@ export default function Subscription() {
     },
     onError: (e: any) => toast.show(e?.message || "Грешка", "error"),
   });
-
-  const copyIban = async () => {
-    if (subQ.data?.iban) {
-      await Clipboard.setStringAsync(subQ.data.iban);
-      toast.show("IBAN копиран", "success");
-    }
-  };
 
   const uploadProof = async () => {
     const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -122,28 +112,9 @@ export default function Subscription() {
           </View>
         )}
 
-        <Text style={styles.sectionTitle}>Подаци за уплату</Text>
-        <View style={styles.ibanCard}>
-          <View style={styles.ibanRow}>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.ibanLabel}>IBAN РАЧУН</Text>
-              <Text style={styles.ibanValue} testID="iban-value">{sub.iban}</Text>
-            </View>
-            <Pressable testID="copy-iban-button" style={styles.copyBtn} onPress={copyIban}>
-              <Icon name="content-copy" size={18} color={colors.brandPrimary} />
-            </Pressable>
-          </View>
-          <View style={styles.ibanDivider} />
-          <Text style={styles.ibanLabel}>ПРИМАЛАЦ</Text>
-          <Text style={styles.ibanSub}>{sub.beneficiary}</Text>
-          <Text style={[styles.ibanLabel, { marginTop: 12 }]}>ИЗНОС</Text>
-          <Text style={styles.ibanSub}>{sub.price_eur}€ / {sub.months} месеци</Text>
-        </View>
-
         <View style={styles.stepsCard}>
-          <Step n="1" text="Уплатите износ на наведени IBAN рачун" />
-          <Step n="2" text="Отпремите доказ о уплати (опционо)" />
-          <Step n="3" text="Означите „Уплатио сам“ — админ потврђује и продужава претплату за 6 месеци" />
+          <Step n="1" text="Отпремите доказ о уплати (опционо)" />
+          <Step n="2" text="Означите „Уплатио сам“ — админ потврђује и продужава претплату за 6 месеци" />
         </View>
 
         {pending?.proof_url && (
