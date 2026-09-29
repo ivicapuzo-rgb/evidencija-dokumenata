@@ -71,4 +71,10 @@ delete/view user accounts).
 - src/utils/updateChecker.ts: fetches version.json, compares versionCode with Application.nativeBuildVersion, downloads APK via expo-file-system(legacy) createDownloadResumable, installs via expo-intent-launcher INSTALL_PACKAGE with content:// URI.
 - src/components/ApkUpdatePrompt.tsx: Serbian modal, checks on launch + foreground, progress bar, mandatory support; mounted in app/_layout.tsx. Android-only, inert in dev/web.
 - app.json android.permissions += INTERNET, REQUEST_INSTALL_PACKAGES.
-- CAVEATS: self-hosted APK must be signed with the SAME keystore as the installed build (else Android rejects update); works only in a real Android build, not Expo Go/preview; requires user to upload APK to GitHub Releases and bump version.json.
+- CAVEATS: self-hosted APK must be signed with the SAME keystore as the installed build (else Android rejects update); works only in a real Android build, not Expo Go/preview; requires user to upload APK to GitHub Releases and bump version_code.
+
+## Update 2026-09-29 (b) — version served by backend
+- GET /api/app/version (public) returns {version, versionCode, apkUrl, notes, mandatory} from Mongo collection app_config (seeded default). POST /api/admin/app-version (admin) upserts it. Verified public reflects admin changes.
+- updateChecker.ts VERSION_URL now points to `${EXPO_PUBLIC_BACKEND_URL}/api/app/version` (was GitHub raw). Admins control version/mandatory without editing files.
+- mandatory=true hides the "Касније" button (forces update).
+- Pending user actions: upload signed APK to GitHub Releases + set apkUrl/version_code via admin endpoint; provide google-services.json for Android push.

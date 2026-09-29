@@ -595,6 +595,67 @@ async def register_push(body: RegisterPushBody):
 
 
 # ---------------------------------------------------------------------------
+# App version (self-hosted APK auto-update) — served from DB for easy control
+# ---------------------------------------------------------------------------
+APP_VERSION_DEFAULT = {
+    "_id": "version",
+    "version": "1.0.0",
+    "version_code": 1,
+    "apk_url": "https://github.com/ivicapuzo-rgb/evidencija-dokumenata/releases/latest/download/evidencija-dokumenata.apk",
+    "notes": "Прва верзија апликације Евиденција докумената.",
+    "mandatory": False,
+}
+
+
+class AppVersionIn(BaseModel):
+    version: str
+    version_code: int
+    apk_url: str
+    notes: Optional[str] = None
+    mandatory: bool = False
+
+
+async def _get_app_version() -> dict:
+    doc = await db.app_config.find_one({"_id": "version"})
+    if not doc:
+        await db.app_config.insert_one(dict(APP_VERSION_DEFAULT))
+        doc = dict(APP_VERSION_DEFAULT)
+    return doc
+
+
+def _serialize_version(doc: dict) -> dict:
+    return {
+        "version": doc.get("version", "1.0.0"),
+        "versionCode": doc.get("version_code", 1),
+        "apkUrl": doc.get("apk_url", ""),
+        "notes": doc.get("notes"),
+        "mandatory": bool(doc.get("mandatory", False)),
+    }
+
+
+@api_router.get("/app/version")
+async def get_app_version():
+    doc = await _get_app_version()
+    return _serialize_version(doc)
+
+
+@api_router.post("/admin/app-version")
+async def set_app_version(body: AppVersionIn, _: Annotated[dict, Depends(admin_user)]):
+    update = {
+        "version": body.version,
+        "version_code": body.version_code,
+        "apk_url": body.apk_url,
+        "notes": body.notes,
+        "mandatory": body.mandatory,
+        "updated_at": now_utc(),
+    }
+    await db.app_config.update_one({"_id": "version"}, {"$set": update}, upsert=True)
+    doc = await _get_app_version()
+    return _serialize_version(doc)
+
+
+
+# ---------------------------------------------------------------------------
 # Admin
 # ---------------------------------------------------------------------------
 def _extend_subscription(user: dict) -> datetime:

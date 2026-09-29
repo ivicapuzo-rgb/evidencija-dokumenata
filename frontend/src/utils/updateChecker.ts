@@ -3,11 +3,10 @@ import * as FileSystem from "expo-file-system/legacy";
 import * as IntentLauncher from "expo-intent-launcher";
 import * as Application from "expo-application";
 
-// version.json is hosted on the user's GitHub repo (served raw). The app pulls
-// all update-check data from here. Update this file (bump versionCode + apkUrl)
-// whenever you publish a new APK to GitHub Releases.
-export const VERSION_URL =
-  "https://raw.githubusercontent.com/ivicapuzo-rgb/evidencija-dokumenata/main/version.json";
+// version info is served by the backend (/api/app/version) for easy control —
+// admins can change version/apkUrl/mandatory without editing files. The app
+// pulls all update-check data from here.
+export const VERSION_URL = `${process.env.EXPO_PUBLIC_BACKEND_URL}/api/app/version`;
 
 export type RemoteVersion = {
   version: string;
