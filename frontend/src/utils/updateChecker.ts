@@ -20,14 +20,33 @@ export type RemoteVersion = {
 };
 
 function normalize(data: any): RemoteVersion | null {
-  if (!data) return null;
-  // accept both camelCase (backend) and version.json shapes
-  const versionCode = typeof data.versionCode === "number" ? data.versionCode : data.version_code;
+  if (!data || typeof data !== "object") return null;
+
+  // GitHub Releases API shape: { tag_name, name, body, assets: [{ name, browser_download_url }] }
+  if (data.tag_name || Array.isArray(data.assets)) {
+    const assets = Array.isArray(data.assets) ? data.assets : [];
+    const apk = assets.find(
+      (a: any) =>
+        typeof a?.browser_download_url === "string" &&
+        a.browser_download_url.toLowerCase().endsWith(".apk"),
+    );
+    if (!apk) return null;
+    return {
+      version: String(data.tag_name ?? data.name ?? "").replace(/^v/i, ""),
+      versionCode: 0, // no integer code in GitHub releases -> compare by version string
+      apkUrl: apk.browser_download_url,
+      notes: typeof data.body === "string" ? data.body : undefined,
+      mandatory: false,
+    };
+  }
+
+  // version.json / backend shape (camelCase or snake_case)
+  const code = typeof data.versionCode === "number" ? data.versionCode : data.version_code;
   const apkUrl = data.apkUrl ?? data.apk_url;
-  if (typeof versionCode !== "number" || !apkUrl) return null;
+  if (!apkUrl) return null;
   return {
     version: data.version ?? "",
-    versionCode,
+    versionCode: typeof code === "number" ? code : 0,
     apkUrl,
     notes: data.notes,
     mandatory: !!data.mandatory,
@@ -73,12 +92,31 @@ export function currentVersionCode(): number {
   return isNaN(n) ? 0 : n;
 }
 
+// semver-ish compare: >0 if a newer than b
+function compareVersions(a: string, b: string): number {
+  const pa = String(a).replace(/^v/i, "").split(".").map((n) => parseInt(n, 10) || 0);
+  const pb = String(b).replace(/^v/i, "").split(".").map((n) => parseInt(n, 10) || 0);
+  for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
+    const d = (pa[i] || 0) - (pb[i] || 0);
+    if (d !== 0) return d > 0 ? 1 : -1;
+  }
+  return 0;
+}
+
 // Returns the remote version info only when a newer APK is available (Android).
 export async function checkForApkUpdate(): Promise<RemoteVersion | null> {
   if (Platform.OS !== "android") return null;
   const remote = await fetchRemoteVersion();
   if (!remote) return null;
-  return remote.versionCode > currentVersionCode() ? remote : null;
+
+  const installedCode = currentVersionCode();
+  // If both have an integer versionCode, compare those (most reliable).
+  if (remote.versionCode > 0 && installedCode > 0) {
+    return remote.versionCode > installedCode ? remote : null;
+  }
+  // Otherwise (e.g. GitHub Releases tag), compare the version string.
+  const installedVersion = Application.nativeApplicationVersion ?? "0";
+  return compareVersions(remote.version, installedVersion) > 0 ? remote : null;
 }
 
 // Downloads the APK to the cache dir and launches the Android package installer.
