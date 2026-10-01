@@ -34,19 +34,36 @@ function normalize(data: any): RemoteVersion | null {
   };
 }
 
-async function fetchJson(url: string): Promise<RemoteVersion | null> {
+async function fetchConfig(url: string): Promise<any | null> {
   try {
     const res = await fetch(`${url}?t=${Date.now()}`);
     if (!res.ok) return null;
-    return normalize(await res.json());
+    return await res.json();
   } catch {
     return null;
   }
 }
 
+async function fetchJson(url: string): Promise<RemoteVersion | null> {
+  const data = await fetchConfig(url);
+  return normalize(data);
+}
+
 export async function fetchRemoteVersion(): Promise<RemoteVersion | null> {
-  // primary: backend; fallback: GitHub raw version.json
-  return (await fetchJson(VERSION_URL)) ?? (await fetchJson(GITHUB_FALLBACK_URL));
+  // 1) backend config (also holds the admin-provided updateUrl)
+  const backend = await fetchConfig(VERSION_URL);
+  if (backend) {
+    const updateUrl = String(backend.updateUrl ?? "").trim();
+    // 2) if an update-check link is configured, that link is the source of truth
+    if (updateUrl) {
+      const fromLink = await fetchJson(updateUrl);
+      if (fromLink) return fromLink;
+    }
+    const normalized = normalize(backend);
+    if (normalized) return normalized;
+  }
+  // 3) GitHub raw fallback when backend is unreachable
+  return await fetchJson(GITHUB_FALLBACK_URL);
 }
 
 // Android versionCode of the currently installed build.

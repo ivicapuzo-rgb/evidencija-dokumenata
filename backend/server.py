@@ -602,6 +602,7 @@ APP_VERSION_DEFAULT = {
     "version": "1.0.0",
     "version_code": 1,
     "apk_url": "https://github.com/ivicapuzo-rgb/evidencija-dokumenata/releases/latest/download/evidencija-dokumenata.apk",
+    "update_url": "",
     "notes": "Прва верзија апликације Евиденција докумената.",
     "mandatory": False,
 }
@@ -611,6 +612,7 @@ class AppVersionIn(BaseModel):
     version: str
     version_code: int
     apk_url: str
+    update_url: Optional[str] = ""
     notes: Optional[str] = None
     mandatory: bool = False
 
@@ -628,6 +630,7 @@ def _serialize_version(doc: dict) -> dict:
         "version": doc.get("version", "1.0.0"),
         "versionCode": doc.get("version_code", 1),
         "apkUrl": doc.get("apk_url", ""),
+        "updateUrl": doc.get("update_url", ""),
         "notes": doc.get("notes"),
         "mandatory": bool(doc.get("mandatory", False)),
     }
@@ -645,6 +648,7 @@ async def set_app_version(body: AppVersionIn, _: Annotated[dict, Depends(admin_u
         "version": body.version,
         "version_code": body.version_code,
         "apk_url": body.apk_url,
+        "update_url": (body.update_url or "").strip(),
         "notes": body.notes,
         "mandatory": body.mandatory,
         "updated_at": now_utc(),

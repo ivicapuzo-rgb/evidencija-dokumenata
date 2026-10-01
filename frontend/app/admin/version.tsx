@@ -13,6 +13,7 @@ type Version = {
   version: string;
   versionCode: number;
   apkUrl: string;
+  updateUrl: string;
   notes: string | null;
   mandatory: boolean;
 };
@@ -30,6 +31,7 @@ export default function AdminVersion() {
   const [version, setVersion] = useState("");
   const [versionCode, setVersionCode] = useState("");
   const [apkUrl, setApkUrl] = useState("");
+  const [updateUrl, setUpdateUrl] = useState("");
   const [notes, setNotes] = useState("");
   const [mandatory, setMandatory] = useState(false);
   const [hydrated, setHydrated] = useState(false);
@@ -39,6 +41,7 @@ export default function AdminVersion() {
       setVersion(q.data.version);
       setVersionCode(String(q.data.versionCode));
       setApkUrl(q.data.apkUrl);
+      setUpdateUrl(q.data.updateUrl ?? "");
       setNotes(q.data.notes ?? "");
       setMandatory(q.data.mandatory);
       setHydrated(true);
@@ -64,6 +67,7 @@ export default function AdminVersion() {
       version: version.trim(),
       version_code: code,
       apk_url: apkUrl.trim(),
+      update_url: updateUrl.trim(),
       notes: notes.trim() || null,
       mandatory,
     });
@@ -129,6 +133,21 @@ export default function AdminVersion() {
             autoCapitalize="none"
             multiline
           />
+
+          <Text style={styles.label}>ЛИНК ЗА ПРОВЕРУ АЖУРИРАЊА (GitHub)</Text>
+          <TextInput
+            testID="update-url-input"
+            style={[styles.input, styles.multiline]}
+            value={updateUrl}
+            onChangeText={setUpdateUrl}
+            placeholder="Залепите GitHub линк (празно = користи ова подешавања)"
+            placeholderTextColor={colors.muted}
+            autoCapitalize="none"
+            multiline
+          />
+          <Text style={styles.hint}>
+            Ако је попуњено, апликација проверу новог ажурирања тражи на овом линку (нпр. version.json на GitHub-у). Ако је празно, користе се поља изнад.
+          </Text>
 
           <Text style={styles.label}>НАПОМЕНЕ (шта је ново)</Text>
           <TextInput
@@ -209,6 +228,7 @@ const useStyles = makeStyles((colors) => ({
     color: colors.onSurface,
   },
   multiline: { minHeight: 60, textAlignVertical: "top" },
+  hint: { fontSize: 12, color: colors.muted, marginTop: 8, lineHeight: 17 },
   switchRow: {
     flexDirection: "row",
     alignItems: "center",
